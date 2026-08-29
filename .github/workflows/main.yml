@@ -24,30 +24,27 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Find Flutter project directory
-        id: find_dir
+      - name: Locate pubspec directory
+        id: locate
         run: |
-          if [ -f "pubspec.yaml" ]; then
-            echo "working_dir=." >> $GITHUB_OUTPUT
-          else
-            DIR=$(find . -maxdepth 2 -name "pubspec.yaml" -exec dirname {} \;)
-            echo "working_dir=$DIR" >> $GITHUB_OUTPUT
-          fi
+          TARGET_DIR=$(find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
+          echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+          echo "Found project at: $TARGET_DIR"
 
       - name: Install Dependencies
-        working-directory: ${{ steps.find_dir.outputs.working_dir }}
-        run: flutter pub get
+        run: |
+          cd ${{ steps.locate.outputs.dir }}
+          flutter pub get
 
       - name: Build APK
-        working-directory: ${{ steps.find_dir.outputs.working_dir }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: flutter build apk --release
+        run: |
+          cd ${{ steps.locate.outputs.dir }}
+          flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: |
-            ${{ steps.find_dir.outputs.working_dir }}/build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-release.apk
+          path: /**/build/app/outputs/flutter-apk/app-release.apk
