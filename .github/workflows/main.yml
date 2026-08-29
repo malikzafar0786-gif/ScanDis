@@ -27,6 +27,7 @@ jobs:
       - name: Locate pubspec directory safely
         id: locate
         run: |
+          # Only search inside the workspace root folder up to 3 levels deep
           TARGET_DIR=$(find . -maxdepth 3 -name "pubspec.yaml" -not -path '*/.*' -exec dirname {} \; | head -n 1)
           if [ -z "$TARGET_DIR" ]; then
             TARGET_DIR="."
