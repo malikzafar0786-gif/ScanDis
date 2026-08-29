@@ -30,24 +30,28 @@ jobs:
           TARGET_DIR=$(find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
           echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
 
-      - name: Rebuild Android Platform Correctly
+      - name: Rebuild Android Platform
         run: |
           cd ${{ steps.locate.outputs.dir }}
-          rm -rf android
-          flutter create . --platforms=android --org com.docscanner.app
+          flutter create . --platforms=android --org com.docscanner.app --overwrite
 
-      - name: Update Gradle Properties and Min SDK
+      - name: Safe Min SDK Fix
         run: |
-          cd ${{ steps.locate.outputs.dir }}/android
+          cd ${{ steps.locate.outputs.dir }}
           
-          # Force minSdkVersion 21 in build.gradle
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' app/build.gradle
-          sed -i 's/flutter.minSdkVersion/21/g' app/build.gradle
+          # Force minSdkVersion 21 using Flutter build properties directly
+          if [ -f "android/app/build.gradle" ]; then
+            sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle || true
+            sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
+          fi
+
+          if [ -f "android/app/build.gradle.kts" ]; then
+            sed -i 's/minSdk = .*/minSdk = 21/g' android/app/build.gradle.kts || true
+            sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
+          fi
           
-          # Add build optimization flags
-          echo "android.useAndroidX=true" >> gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> gradle.properties
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
 
       - name: Install Dependencies
         run: |
@@ -59,7 +63,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           cd ${{ steps.locate.outputs.dir }}
-          flutter build apk --release --no-tree-shake-icons --build-number=1
+          flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
