@@ -33,7 +33,19 @@ jobs:
       - name: Recreate Android Project Platform
         run: |
           cd ${{ steps.locate.outputs.dir }}
-          flutter create . --platforms=android
+          flutter create . --platforms=android --org com.example.docscanner
+
+      - name: Fix Android Gradle Properties & SDK Version
+        run: |
+          cd ${{ steps.locate.outputs.dir }}/android
+          
+          # Fix minSdkVersion for ML Kit & Camera dependencies
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' app/build.gradle || true
+          sed -i 's/flutter.minSdkVersion/21/g' app/build.gradle || true
+          
+          # Fix AndroidX & Jetifier
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
 
       - name: Install Dependencies
         run: |
