@@ -31,6 +31,33 @@ jobs:
       - name: Generate native platform folders
         run: flutter create --platforms=android,ios --org com.scandis --project-name scandis .
 
+      - name: Disable R8 minification (fixes ML Kit build failure)
+        run: |
+          python3 - <<'EOF'
+          import os
+
+          candidates = [
+              "android/app/build.gradle.kts",
+              "android/app/build.gradle",
+          ]
+          for path in candidates:
+              if not os.path.exists(path):
+                  continue
+              with open(path) as f:
+                  content = f.read()
+              original = content
+              content = content.replace("isMinifyEnabled = true", "isMinifyEnabled = false")
+              content = content.replace("isShrinkResources = true", "isShrinkResources = false")
+              content = content.replace("minifyEnabled true", "minifyEnabled false")
+              content = content.replace("shrinkResources true", "shrinkResources false")
+              if content != original:
+                  with open(path, "w") as f:
+                      f.write(content)
+                  print(f"Patched {path}: R8 minification disabled")
+              else:
+                  print(f"No minify flags found in {path}")
+          EOF
+
       - name: Add required Android permissions
         run: |
           python3 - <<'EOF'
