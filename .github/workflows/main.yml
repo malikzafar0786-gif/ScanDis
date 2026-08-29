@@ -24,11 +24,15 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Locate pubspec directory
+      - name: Locate pubspec directory safely
         id: locate
         run: |
-          TARGET_DIR=$(find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
+          TARGET_DIR=$(find . -maxdepth 3 -name "pubspec.yaml" -not -path '*/.*' -exec dirname {} \; | head -n 1)
+          if [ -z "$TARGET_DIR" ]; then
+            TARGET_DIR="."
+          fi
           echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+          echo "Project directory found at: $TARGET_DIR"
 
       - name: Rebuild Android Platform
         run: |
@@ -39,7 +43,6 @@ jobs:
         run: |
           cd ${{ steps.locate.outputs.dir }}
           
-          # Force minSdkVersion 21 using Flutter build properties directly
           if [ -f "android/app/build.gradle" ]; then
             sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle || true
             sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
