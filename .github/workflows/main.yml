@@ -27,7 +27,6 @@ jobs:
       - name: Locate pubspec directory safely
         id: locate
         run: |
-          # Only search inside the workspace root folder up to 3 levels deep
           TARGET_DIR=$(find . -maxdepth 3 -name "pubspec.yaml" -not -path '*/.*' -exec dirname {} \; | head -n 1)
           if [ -z "$TARGET_DIR" ]; then
             TARGET_DIR="."
@@ -69,8 +68,14 @@ jobs:
           cd ${{ steps.locate.outputs.dir }}
           flutter build apk --release --no-tree-shake-icons
 
+      - name: Copy APK to Root Workspace
+        run: |
+          APK_PATH=$(find . -name "app-release.apk" | head -n 1)
+          mkdir -p output_apk
+          cp "$APK_PATH" output_apk/app-release.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: /**/build/app/outputs/flutter-apk/app-release.apk
+          path: output_apk/app-release.apk
