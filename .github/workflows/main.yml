@@ -32,9 +32,8 @@ jobs:
             TARGET_DIR="."
           fi
           echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
-          echo "Project directory found at: $TARGET_DIR"
 
-     - name: Rebuild Android Platform
+      - name: Rebuild Android Platform
         run: |
           cd ${{ steps.locate.outputs.dir }}
           flutter create . --platforms=android --org com.docscanner.app
