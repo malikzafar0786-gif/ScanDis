@@ -34,7 +34,7 @@ jobs:
       - name: Disable R8 minification (fixes ML Kit build failure)
         run: |
           python3 - <<'EOF'
-          import os
+          import re, os
 
           candidates = [
               "android/app/build.gradle.kts",
@@ -46,17 +46,29 @@ jobs:
               with open(path) as f:
                   content = f.read()
               original = content
-              content = content.replace("isMinifyEnabled = true", "isMinifyEnabled = false")
-              content = content.replace("isShrinkResources = true", "isShrinkResources = false")
-              content = content.replace("minifyEnabled true", "minifyEnabled false")
-              content = content.replace("shrinkResources true", "shrinkResources false")
+
+              content = re.sub(r'isMinifyEnabled\s*=\s*true', 'isMinifyEnabled = false', content)
+              content = re.sub(r'isShrinkResources\s*=\s*true', 'isShrinkResources = false', content)
+              content = re.sub(r'minifyEnabled\s+true', 'minifyEnabled false', content)
+              content = re.sub(r'shrinkResources\s+true', 'shrinkResources false', content)
+
               if content != original:
                   with open(path, "w") as f:
                       f.write(content)
-                  print(f"Patched {path}: R8 minification disabled")
+                  print(f"✅ Patched {path}: R8 minification disabled")
               else:
-                  print(f"No minify flags found in {path}")
+                  print(f"⚠️ No minify=true flags found in {path} — nothing to patch")
           EOF
+
+      - name: Show buildTypes config (debug)
+        run: |
+          echo "----- buildTypes section -----"
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            if [ -f "$f" ]; then
+              echo "== $f =="
+              grep -n -A 8 "buildTypes" "$f" || true
+            fi
+          done
 
       - name: Add required Android permissions
         run: |
