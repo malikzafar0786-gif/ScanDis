@@ -30,34 +30,36 @@ jobs:
           TARGET_DIR=$(find . -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
           echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
 
-      - name: Recreate Android Project Platform
+      - name: Rebuild Android Platform Correctly
         run: |
           cd ${{ steps.locate.outputs.dir }}
-          flutter create . --platforms=android --org com.example.docscanner
+          rm -rf android
+          flutter create . --platforms=android --org com.docscanner.app
 
-      - name: Fix Android Gradle Properties & SDK Version
+      - name: Update Gradle Properties and Min SDK
         run: |
           cd ${{ steps.locate.outputs.dir }}/android
           
-          # Fix minSdkVersion for ML Kit & Camera dependencies
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' app/build.gradle || true
-          sed -i 's/flutter.minSdkVersion/21/g' app/build.gradle || true
+          # Force minSdkVersion 21 in build.gradle
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' app/build.gradle
+          sed -i 's/flutter.minSdkVersion/21/g' app/build.gradle
           
-          # Fix AndroidX & Jetifier
+          # Add build optimization flags
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> gradle.properties
 
       - name: Install Dependencies
         run: |
           cd ${{ steps.locate.outputs.dir }}
           flutter pub get
 
-      - name: Build APK
+      - name: Build APK (Release)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           cd ${{ steps.locate.outputs.dir }}
-          flutter build apk --release --no-tree-shake-icons
+          flutter build apk --release --no-tree-shake-icons --build-number=1
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
