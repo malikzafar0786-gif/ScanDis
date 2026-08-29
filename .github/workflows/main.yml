@@ -33,17 +33,18 @@ jobs:
           fi
           echo "dir=$TARGET_DIR" >> $GITHUB_OUTPUT
 
-      - name: Safely Rebuild Android Folder Only
+      - name: Rebuild Android Platform Cleanly
         run: |
           cd ${{ steps.locate.outputs.dir }}
           rm -rf android
           flutter create . --platforms=android --org com.docscanner.app
+          flutter clean
 
-      - name: Set Android Configuration & Permissions
+      - name: Apply Android Fixes
         run: |
           cd ${{ steps.locate.outputs.dir }}
           
-          # Set minSdkVersion to 21 for ML Kit / Camera packages
+          # Fix minSdkVersion in build.gradle
           if [ -f "android/app/build.gradle" ]; then
             sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle || true
             sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
@@ -54,12 +55,7 @@ jobs:
             sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
           fi
           
-          # Add Camera permission to AndroidManifest
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.CAMERA"\/>' "$MANIFEST" || true
-          fi
-          
+          # Force AndroidX properties
           echo "android.useAndroidX=true" >> android/gradle.properties
           echo "android.enableJetifier=true" >> android/gradle.properties
 
