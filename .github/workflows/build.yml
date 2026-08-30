@@ -1,0 +1,115 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository code (only lib/, pubspec.yaml, assets/ are tracked)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Java (required by Gradle/Android)
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Flutter — always the LATEST stable release, so this workflow
+      #    never goes stale and you never need to bump a version number.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # 4. Scaffold native android/ + ios/ folders FRESH every run, matching
+      #    whatever Flutter/Gradle/Kotlin versions are current today.
+      #    This is why android/ and ios/ do NOT need to live in the repo —
+      #    no more version-mismatch build failures, ever.
+      - name: Generate native platform folders
+        run: flutter create --platforms=android,ios --org com.scandis --project-name scandis .
+
+      # 5. Auto-insert required Android permissions (camera + storage)
+      #    into the freshly generated AndroidManifest.xml.
+      - name: Add required Android permissions
+        run: |
+          python3 - <<'EOF'
+          import re
+          path = "android/app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          perms = (
+              '    <uses-permission android:name="android.permission.CAMERA" />\n'
+              '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n'
+              '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n'
+          )
+          if "android.permission.CAMERA" not in content:
+              content = re.sub(r'(<manifest[^>]*>)', r'\1\n' + perms, content, count=1)
+              with open(path, "w") as f:
+                  f.write(content)
+          print("AndroidManifest.xml patched with permissions")
+          EOF
+
+      # 6. Auto-insert camera usage description into iOS Info.plist
+      #    (harmless on this Android-only build, keeps iOS ready for later).
+      - name: Add required iOS permissions
+        continue-on-error: true
+        run: |
+          python3 - <<'EOF'
+          path = "ios/Runner/Info.plist"
+          with open(path) as f:
+              content = f.read()
+          if "NSCameraUsageDescription" not in content:
+              addition = "  <key>NSCameraUsageDescription</key>\n  <string>We need camera access to scan your documents.</string>\n"
+              content = content.replace("</dict>", addition + "</dict>", 1)
+              with open(path, "w") as f:
+                  f.write(content)
+          print("Info.plist patched with camera usage description")
+          EOF
+
+      # 7. Fetch dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 8. Generate Hive adapter (scanned_document.g.dart) etc.
+      - name: Run build_runner (code generation)
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      # 9. Generate app icons (Android + iOS) from assets/icon/app_icon.png
+      - name: Generate app icons
+        run: flutter pub run flutter_launcher_icons
+
+      # 10. Static analysis (non-blocking — just informative)
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        continue-on-error: true
+
+      # 11. Build the release APK.
+      #     Add GEMINI_API_KEY as a repo secret:
+      #     Settings → Secrets and variables → Actions → New repository secret
+      - name: Build APK (Release)
+        run: |
+          flutter build apk --release \
+            --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+
+      # 12. Copy APK to a predictable filename
+      - name: Copy APK to root workspace
+        run: cp build/app/outputs/flutter-apk/app-release.apk ScanDis-release.apk
+
+      # 13. Upload as downloadable artifact
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScanDis-release-apk
+          path: ScanDis-release.apk
+          retention-days: 30
